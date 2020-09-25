@@ -1,8 +1,8 @@
 package main
 
 import (
+	"GitHub/Messenger-to-learn-golang/request"
 	"bufio"
-	"encoding/json"
 	"log"
 	"net"
 	"os"
@@ -59,16 +59,10 @@ func handleConnection(conn net.Conn) {
 
 	for {
 
-		// client request data
-		type Request struct {
-			Command string
-			Data1   string
-			Data2   string
-		}
-		var request Request
-
 		// read client request
 		requestStr, err := bufio.NewReader(conn).ReadString('\n')
+
+		// connection lost?
 		if err != nil {
 			if debug {
 				log.Println("userName: '" + userName)
@@ -78,30 +72,32 @@ func handleConnection(conn net.Conn) {
 				gLocalDb.Logout(userName)
 				userName = ""
 			}
-			// connection lost?
 			return
 		}
 		if debug {
 			log.Print("requestStr: " + requestStr + "\n")
 		}
-		json.Unmarshal([]byte(requestStr), &request)
+
+		// decode to request data
+		var rqst request.Request
+		rqst.Decode(requestStr)
 
 		//
 		// Process client request
 		//
-		switch request.Command {
+		switch rqst.Command {
 
 		//  CheckUniqueNickName
 		case "CheckUniqueNickName":
-			if gLocalDb.DoesUserExist(request.Data1) {
-				conn.Write([]byte("User '" + request.Data1 + "' already exists\n"))
+			if gLocalDb.DoesUserExist(rqst.Data1) {
+				conn.Write([]byte("User '" + rqst.Data1 + "' already exists\n"))
 			} else {
 				conn.Write([]byte("ok\n"))
 			}
 
 		//  RegisterUser
 		case "RegisterUser":
-			if err := gLocalDb.AddUser(request.Data1, request.Data2, conn); err != nil {
+			if err := gLocalDb.AddUser(rqst.Data1, rqst.Data2, conn); err != nil {
 				conn.Write([]byte(err.Error() + "\n"))
 			} else {
 				conn.Write([]byte("ok\n"))
@@ -109,10 +105,10 @@ func handleConnection(conn net.Conn) {
 
 		//  Login
 		case "Login":
-			if err := gLocalDb.Login(request.Data1, request.Data2, conn); err != nil {
+			if err := gLocalDb.Login(rqst.Data1, rqst.Data2, conn); err != nil {
 				conn.Write([]byte(err.Error() + "\n"))
 			} else {
-				userName = request.Data1
+				userName = rqst.Data1
 				conn.Write([]byte("ok\n"))
 			}
 
@@ -124,7 +120,7 @@ func handleConnection(conn net.Conn) {
 
 		//  ChangePassword
 		case "ChangePassword":
-			if err := gLocalDb.ChangePassword(userName, request.Data1); err != nil {
+			if err := gLocalDb.ChangePassword(userName, rqst.Data1); err != nil {
 				conn.Write([]byte(err.Error() + "\n"))
 			} else {
 				conn.Write([]byte("ok\n"))
@@ -151,7 +147,7 @@ func handleConnection(conn net.Conn) {
 			gLocalDb.RLock()
 			{
 				// get recipient user info
-				name := request.Data1
+				name := rqst.Data1
 				userInfo, isFound := gLocalDb.FindUser(name)
 
 				// check recipient connection
@@ -162,7 +158,7 @@ func handleConnection(conn net.Conn) {
 				} else {
 
 					// send message
-					if err := sendMessage(userInfo.conn, userName, request.Data2); err != nil {
+					if err := sendMessage(userInfo.conn, userName, rqst.Data2); err != nil {
 						conn.Write([]byte(err.Error() + "\n"))
 					} else {
 						conn.Write([]byte("ok\n"))
