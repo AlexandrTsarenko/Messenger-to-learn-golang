@@ -1,8 +1,8 @@
 package main
 
 import (
+	"GitHub/Messenger-to-learn-golang/request"
 	"bufio"
-	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -320,25 +320,14 @@ func handlePassword(conn net.Conn) {
 // sendRequest
 func sendRequest(conn net.Conn, command, data1, data2 string) (string, error) {
 
-	// request structure data
-	type Request struct {
-		Command string
-		Data1   string
-		Data2   string
-	}
-	var requestData = Request{command, data1, data2}
-
-	// encode to json
-	requestBytes, err := json.Marshal(requestData)
-	if err != nil {
-		log.Fatal(err)
-		return "", err
-	}
+	// make requests json string
+	requestData := request.Request{Command: command, Data1: data1, Data2: data2}
+	requestStr := requestData.Encode()
 
 	// send to server
-	fmt.Fprintln(conn, string(requestBytes))
+	fmt.Fprintln(conn, requestStr)
 	if debug {
-		log.Println("requestJson: " + string(requestBytes))
+		log.Println("requestJson: " + requestStr)
 	}
 
 	// wait response
