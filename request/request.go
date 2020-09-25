@@ -3,7 +3,6 @@ package request
 import (
 	"encoding/json"
 	"log"
-	"net"
 )
 
 // Request - data structure for the client to send a request to the server
@@ -13,8 +12,8 @@ type Request struct {
 	Data2   string
 }
 
-// Endode - encodes Request data structure to JSON string
-func (r *Request) Endode(conn net.Conn) string {
+// Encode - encodes Request data structure to JSON string
+func (r *Request) Encode() string {
 
 	// encode to json
 	bytes, err := json.Marshal(r)
