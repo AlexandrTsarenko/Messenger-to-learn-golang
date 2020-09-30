@@ -12,6 +12,7 @@ func TestRegister(t *testing.T) {
 		t.Error("No Sever Connection: ", err)
 		return
 	}
+
 	go readRoutine(conn)
 
 	// Clear
