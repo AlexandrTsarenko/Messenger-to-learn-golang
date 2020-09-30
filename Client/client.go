@@ -1,7 +1,7 @@
 package main
 
 import (
-	"GitHub/Messenger-to-learn-golang/request"
+	"GitHub/Messenger-to-learn-golang/protocol"
 	"bufio"
 	"fmt"
 	"io"
@@ -19,9 +19,6 @@ import (
 // Debug - for debugging
 const Debug = false //true
 
-// NickName (after login)
-var userNickName string
-
 //
 // Main
 //
@@ -33,73 +30,14 @@ func main() {
 		serverAddress = os.Args[1]
 	}
 
-	if true {
-		client := Client{}
-		client.Run(serverAddress)
-		return
-	}
-
-	fmt.Println("Connecting to '" + serverAddress + "' ...")
-
-	// Connect
-	conn, err := net.Dial("tcp", serverAddress)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	defer conn.Close()
-
-	// Start reading routine
-	go readRoutine(conn)
-
-	// Print greeting
-	fmt.Println(txtGREETING)
-
-	//
-	// Main client's loop
-	//
-	for {
-		// Read user command from stdin
-		fmt.Print(userNickName + "# ")
-		command := readLine()
-		if Debug {
-			log.Println("command:" + command)
-		}
-
-		// Process user command
-		switch command {
-
-		case cmdEXIT:
-			return
-
-		case cmdHELP:
-			fmt.Print(txtHELP)
-
-		case cmdREGISTER:
-			handleRegister(conn)
-
-		case cmdLOGIN:
-			handleLogin(conn)
-
-		case cmdLOGOUT:
-			handleLogout(conn)
-
-		case cmdLIST:
-			handleList(conn)
-
-		case cmdMESSAGE:
-			handleSendMessage(conn)
-
-		case cmdPASSWORD:
-			handlePassword(conn)
-
-		default:
-			fmt.Println("Invalid command. (Use 'help' command).")
-		}
-	}
+	client := Client{}
+	client.Run(serverAddress)
+	return
 }
 
+//
 // Client - TCP client
+//
 type Client struct {
 
 	// nickname (after login)
@@ -112,12 +50,14 @@ type Client struct {
 	conn net.Conn
 }
 
+//
 // Run - run TCP client
+//
 func (cl *Client) Run(serverAddr string) {
 
 	fmt.Println("Connecting to '" + serverAddr + "' ...")
 
-	// Connect
+	// Connect to server
 	var err error
 	cl.conn, err = net.Dial("tcp", serverAddr)
 	if err != nil {
@@ -128,24 +68,35 @@ func (cl *Client) Run(serverAddr string) {
 
 	// Start response reading routine
 	cl.responseChannel = make(chan string)
-	go readRoutine(cl.conn)
+	go cl.readRoutine(cl.conn)
 
 	// Print greeting
 	fmt.Println(txtGREETING)
+
+	var commandMap = map[string]func(){
+		cmdEXIT:     cl.handleExit,
+		cmdHELP:     cl.handleHelp,
+		cmdREGISTER: cl.handleRegister,
+		cmdLOGIN:    cl.handleLogin,
+		cmdLOGOUT:   cl.handleLogout,
+		cmdLIST:     cl.handleList,
+		cmdMESSAGE:  cl.handleSendMessage,
+		cmdPASSWORD: cl.handlePassword,
+	}
 
 	//
 	// Command line read loop
 	//
 	for {
 		// Read user command from stdin
-		fmt.Print(userNickName + "# ")
+		fmt.Print(cl.userNickName + "# ")
 		command := readLine()
 		if Debug {
 			log.Println("command:" + command)
 		}
 
 		if handleFunc := commandMap[command]; handleFunc != nil {
-			handleFunc(cl.conn)
+			handleFunc()
 		} else {
 			fmt.Println("Invalid command. (Use 'help' command).")
 		}
@@ -153,7 +104,7 @@ func (cl *Client) Run(serverAddr string) {
 }
 
 // handleRegister
-func handleRegister(conn net.Conn) {
+func (cl *Client) handleRegister() {
 	//
 	// obtain nickname
 	//
@@ -164,15 +115,9 @@ func handleRegister(conn net.Conn) {
 	}
 
 	// check unique nickname
-	responseStr, err := sendRequest(conn, "CheckUniqueNickName", nickName, "")
-
-	if err != nil {
-		log.Fatal(err)
-		return
-	}
+	responseStr := cl.sendRequest(protocol.ScmdCheckUniqueNickName, nickName, "")
 
 	if responseStr != "ok" {
-		fmt.Println(responseStr)
 		return
 	}
 
@@ -195,23 +140,13 @@ func handleRegister(conn net.Conn) {
 
 	// send request to server
 
-	responseStr, err = sendRequest(conn, "RegisterUser", nickName, md5Hex)
-
-	if err != nil {
-		log.Fatal(err)
-		return
-	}
-
-	if responseStr != "ok" {
-		fmt.Println(responseStr)
-		return
-	}
+	cl.sendRequest(protocol.ScmdRegisterUser, nickName, md5Hex)
 }
 
 // handleLogin
-func handleLogin(conn net.Conn) {
+func (cl *Client) handleLogin() {
 
-	if userNickName != "" {
+	if cl.userNickName != "" {
 		fmt.Println("You are already logged")
 		return
 	}
@@ -244,61 +179,44 @@ func handleLogin(conn net.Conn) {
 
 	// send request to server
 
-	responseStr, err := sendRequest(conn, "Login", nickName, md5Hex)
-
-	if err != nil {
-		log.Fatal(err)
-		return
-	}
+	responseStr := cl.sendRequest(protocol.ScmdLogin, nickName, md5Hex)
 
 	if responseStr != "ok" {
 		fmt.Println(responseStr)
 		return
 	}
 
-	userNickName = nickName
+	cl.userNickName = nickName
 }
 
 // handleLogout
-func handleLogout(conn net.Conn) {
+func (cl *Client) handleLogout() {
 
 	// check authorization
-	if userNickName == "" {
+	if cl.userNickName == "" {
 		fmt.Println("You are not logged.")
 		return
 	}
 
 	// send request to server
 
-	responseStr, err := sendRequest(conn, "Logout", "", "")
-
-	if err != nil {
-		log.Fatal(err)
-		return
-	}
+	responseStr := cl.sendRequest(protocol.ScmdLogout, "", "")
 
 	if responseStr != "ok" {
-		fmt.Println(responseStr)
 		return
 	}
 
-	userNickName = ""
+	cl.userNickName = ""
 }
 
 // handleList
-func handleList(conn net.Conn) {
+func (cl *Client) handleList() {
 
 	// send request to server
 
-	responseStr, err := sendRequest(conn, "GetOnlineUserList", "", "")
-
-	if err != nil {
-		log.Fatal(err)
-		return
-	}
+	responseStr := cl.sendRequest(protocol.ScmdGetOnlineUserList, "", "")
 
 	if responseStr != "ok" {
-		fmt.Println(responseStr)
 		return
 	}
 
@@ -306,10 +224,10 @@ func handleList(conn net.Conn) {
 }
 
 // handleSendMessage
-func handleSendMessage(conn net.Conn) {
+func (cl *Client) handleSendMessage() {
 
 	// check authorization
-	if userNickName == "" {
+	if cl.userNickName == "" {
 		fmt.Println("You are not logged.")
 		return
 	}
@@ -324,24 +242,14 @@ func handleSendMessage(conn net.Conn) {
 
 	// send request to server
 
-	responseStr, err := sendRequest(conn, "MessageTo", recipientNickName, msgText)
-
-	if err != nil {
-		log.Fatal(err)
-		return
-	}
-
-	if responseStr != "ok" {
-		fmt.Println(responseStr)
-		return
-	}
+	cl.sendRequest(protocol.ScmdMessageTo, recipientNickName, msgText)
 }
 
 // handlePassword
-func handlePassword(conn net.Conn) {
+func (cl *Client) handlePassword() {
 
 	// check authorization
-	if userNickName == "" {
+	if cl.userNickName == "" {
 		fmt.Println("You are not logged.")
 		return
 	}
@@ -364,12 +272,7 @@ func handlePassword(conn net.Conn) {
 
 	// send request to server
 
-	responseStr, err := sendRequest(conn, "ChangePassword", md5Hex, "")
-
-	if err != nil {
-		log.Fatal(err)
-		return
-	}
+	responseStr := cl.sendRequest(protocol.ScmdChangePassword, md5Hex, "")
 
 	if responseStr != "ok" {
 		fmt.Println(responseStr)
@@ -378,21 +281,26 @@ func handlePassword(conn net.Conn) {
 }
 
 // sendRequest
-func sendRequest(conn net.Conn, command, data1, data2 string) (string, error) {
+func (cl *Client) sendRequest(command protocol.CommandToServer, data1, data2 string) string {
 
 	// make requests json string
-	requestData := request.Request{Command: command, Data1: data1, Data2: data2}
+	requestData := protocol.Request{Command: command, Data1: data1, Data2: data2}
 	requestStr := requestData.Encode()
 
 	// send to server
-	fmt.Fprintln(conn, requestStr)
+	fmt.Fprintln(cl.conn, requestStr)
 	if Debug {
 		log.Println("requestJson: " + requestStr)
 	}
 
 	// wait response
 	responseStr := <-responseChannel
-	return responseStr, nil
+
+	if responseStr != "ok" {
+		fmt.Println(responseStr)
+	}
+
+	return responseStr
 }
 
 // readLine from stdin
@@ -410,13 +318,13 @@ func trimSuffix(s, suffix string) string {
 	return s
 }
 
-func removeLastChar(s string) string {
-	sz := len(s)
-	if sz > 0 {
-		s = s[:sz-1]
-	}
-	return s
-}
+// func removeLastChar(s string) string {
+// 	sz := len(s)
+// 	if sz > 0 {
+// 		s = s[:sz-1]
+// 	}
+// 	return s
+// }
 
 // readingChannel
 var responseChannel chan string = make(chan string)
@@ -426,7 +334,7 @@ var responseChannel chan string = make(chan string)
 //
 // readRoutine
 //
-func readRoutine(conn net.Conn) {
+func (cl *Client) readRoutine(conn net.Conn) {
 
 	reader := bufio.NewReader(conn)
 
@@ -467,7 +375,7 @@ func readRoutine(conn net.Conn) {
 				log.Println("read message from err: " + err.Error())
 				continue
 			}
-			from = removeLastChar(from)
+			from = trimSuffix(from, "\n")
 
 			// get message text
 			messageText, err := reader.ReadString('\n')
@@ -483,7 +391,7 @@ func readRoutine(conn net.Conn) {
 			fmt.Println("\n\nMessage from '" + from + "':\n" + messageText)
 
 			// print new line
-			fmt.Print(userNickName + "#")
+			fmt.Print(cl.userNickName + "#")
 
 			//todo? messagesChannel <- "Message from '" + from + "':\n" + messageText
 			continue
@@ -493,9 +401,9 @@ func readRoutine(conn net.Conn) {
 		// receive response
 		//
 		if Debug {
-			log.Println("response: '" + removeLastChar(responseStr) + "'")
+			log.Println("response: '" + trimSuffix(responseStr, "\n") + "'")
 		}
-		responseChannel <- removeLastChar(responseStr)
+		responseChannel <- trimSuffix(responseStr, "\n")
 	}
 }
 
@@ -511,23 +419,12 @@ const (
 	cmdPASSWORD = "password"
 )
 
-var commandMap = map[string]func(conn net.Conn){
-	cmdEXIT:     handleExit,
-	cmdHELP:     handleHelp,
-	cmdREGISTER: handleRegister,
-	cmdLOGIN:    handleLogin,
-	cmdLOGOUT:   handleLogout,
-	cmdLIST:     handleList,
-	cmdMESSAGE:  handleSendMessage,
-	cmdPASSWORD: handlePassword,
-}
-
-func handleExit(conn net.Conn) {
+func (cl *Client) handleExit() {
 	os.Exit(0)
 }
 
-func handleHelp(conn net.Conn) {
-	os.Exit(0)
+func (cl *Client) handleHelp() {
+	fmt.Print(txtHELP)
 }
 
 // Text constants

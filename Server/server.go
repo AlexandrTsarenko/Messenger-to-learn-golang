@@ -1,7 +1,7 @@
 package main
 
 import (
-	"GitHub/Messenger-to-learn-golang/request"
+	"GitHub/Messenger-to-learn-golang/protocol"
 	"bufio"
 	"log"
 	"net"
@@ -9,11 +9,11 @@ import (
 	"strings"
 )
 
-// for Debugging
+// Debug - for Debugging
 const Debug = false //true
 
 // LocalDbInterface - Interface for local DB implementaion
-type LocalDbMethods interface {
+type LocalDbInterface interface {
 	// Init - Initiate Local Db
 	Init() error
 
@@ -49,7 +49,7 @@ type LocalDbMethods interface {
 }
 
 // Local DB
-var gLocalDb LocalDbMethods = &LocalDb{}
+var gLocalDb LocalDbInterface = &LocalDb{}
 
 //
 // main()
@@ -84,7 +84,42 @@ func main() {
 	}
 }
 
-/// handleConnection
+// Server - TCP message server
+type Server struct {
+	port    string
+	localDb LocalDbInterface
+}
+
+// Run -
+func (srv *Server) Run() {
+
+	srv.localDb.Init()
+
+	portNum := ":1111"
+	if len(os.Args) > 1 {
+		portNum = os.Args[1]
+	}
+
+	listener, err := net.Listen("tcp4", portNum)
+	if err != nil {
+		log.Println("Listen failed!")
+		log.Fatal(err)
+		return
+	}
+	defer listener.Close()
+
+	for {
+		conn, err := listener.Accept()
+		if err != nil {
+			log.Println("Accept failed!")
+			log.Println(err)
+			return
+		}
+		go handleConnection(conn)
+	}
+}
+
+// handleConnection
 func handleConnection(conn net.Conn) {
 	defer conn.Close()
 
@@ -115,7 +150,7 @@ func handleConnection(conn net.Conn) {
 		}
 
 		// decode to request data
-		var rqst request.Request
+		var rqst protocol.Request
 		rqst.Decode(requestStr)
 
 		//
@@ -124,7 +159,7 @@ func handleConnection(conn net.Conn) {
 		switch rqst.Command {
 
 		//  CheckUniqueNickName
-		case "CheckUniqueNickName":
+		case protocol.ScmdCheckUniqueNickName:
 			if gLocalDb.DoesUserExist(rqst.Data1) {
 				conn.Write([]byte("User '" + rqst.Data1 + "' already exists\n"))
 			} else {
@@ -132,7 +167,7 @@ func handleConnection(conn net.Conn) {
 			}
 
 		//  RegisterUser
-		case "RegisterUser":
+		case protocol.ScmdRegisterUser:
 			if err := gLocalDb.AddUser(rqst.Data1, rqst.Data2, conn); err != nil {
 				conn.Write([]byte(err.Error() + "\n"))
 			} else {
@@ -140,7 +175,7 @@ func handleConnection(conn net.Conn) {
 			}
 
 		//  Login
-		case "Login":
+		case protocol.ScmdLogin:
 			if err := gLocalDb.Login(rqst.Data1, rqst.Data2, conn); err != nil {
 				conn.Write([]byte(err.Error() + "\n"))
 			} else {
@@ -149,13 +184,13 @@ func handleConnection(conn net.Conn) {
 			}
 
 		//  Logout
-		case "Logout":
+		case protocol.ScmdLogout:
 			gLocalDb.Logout(userName)
 			userName = ""
 			conn.Write([]byte("ok\n"))
 
 		//  ChangePassword
-		case "ChangePassword":
+		case protocol.ScmdChangePassword:
 			if err := gLocalDb.ChangePassword(userName, rqst.Data1); err != nil {
 				conn.Write([]byte(err.Error() + "\n"))
 			} else {
@@ -163,7 +198,7 @@ func handleConnection(conn net.Conn) {
 			}
 
 		//  GetOnlineUserList
-		case "GetOnlineUserList":
+		case protocol.ScmdGetOnlineUserList:
 			userList := gLocalDb.GetOnlineUserList()
 			if len(userList) > 0 {
 				conn.Write([]byte("online users: " + strings.Join(userList, ",") + "\n"))
@@ -172,7 +207,7 @@ func handleConnection(conn net.Conn) {
 			}
 
 		//  MessageTo
-		case "MessageTo":
+		case protocol.ScmdMessageTo:
 
 			// check login status
 			if userName == "" {
@@ -204,7 +239,7 @@ func handleConnection(conn net.Conn) {
 			gLocalDb.RUnlock()
 
 		//  Clear (for testing)
-		case "Clear":
+		case protocol.ScmdClear:
 			gLocalDb.Clear()
 			conn.Write([]byte("ok\n"))
 		}

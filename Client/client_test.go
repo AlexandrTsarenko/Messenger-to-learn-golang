@@ -1,142 +1,106 @@
 package main
 
 import (
+	"GitHub/Messenger-to-learn-golang/protocol"
 	"net"
 	"testing"
 )
 
 func TestRegister(t *testing.T) {
+	var cl = Client{}
 
-	conn, err := net.Dial("tcp", "localhost:1111")
+	var err error
+	cl.conn, err = net.Dial("tcp", "localhost:1111")
 	if err != nil {
 		t.Error("No Sever Connection: ", err)
 		return
 	}
 
-	go readRoutine(conn)
+	go cl.readRoutine(cl.conn)
 
 	// Clear
-	r, err := sendRequest(conn, "Clear", "", "")
-	if err != nil {
-		t.Error("Error: ", err)
-		return
-	}
+	r := cl.sendRequest(protocol.ScmdClear, "", "")
 
 	// RegisterUser 'a'
-	r, err = sendRequest(conn, "RegisterUser", "a", "md5")
-	if err != nil {
-		t.Error("Error: ", err)
-		return
-	}
+	r = cl.sendRequest(protocol.ScmdRegisterUser, "a", "md5")
 	if r != "ok" {
 		t.Error("Response error: ", r)
 		return
 	}
 
 	// Login/Logout
-	r, err = sendRequest(conn, "Login", "a", "md5")
-	if err != nil {
-		t.Error("Error: ", err)
-		return
-	}
+	r = cl.sendRequest(protocol.ScmdLogin, "a", "md5")
 	if r != "ok" {
 		t.Error("Response error: ", r)
 		return
 	}
 	// Logout
-	r, err = sendRequest(conn, "Logout", "a", "")
+	r = cl.sendRequest(protocol.ScmdLogout, "a", "")
 	if r != "ok" {
 		t.Error("Response error: ", r)
 		return
 	}
 
-	conn.Close()
-	conn, err = net.Dial("tcp", "localhost:1111")
+	cl.conn.Close()
+	cl.conn, err = net.Dial("tcp", "localhost:1111")
 	if err != nil {
 		t.Error("No Sever Connection: ", err)
 		return
 	}
-	go readRoutine(conn)
+	go cl.readRoutine(cl.conn)
 
 	// Invalid password
-	r, err = sendRequest(conn, "Login", "a", "pass")
-	if err != nil {
-		t.Error("Error: ", err)
-		return
-	}
+	r = cl.sendRequest(protocol.ScmdLogin, "a", "pass")
 	if r != "Invalid password" {
 		t.Error("Response error: ", r)
 		return
 	}
 
 	// Login/+Login
-	r, err = sendRequest(conn, "Login", "a", "md5")
-	if err != nil {
-		t.Error("Error: ", err)
-		return
-	}
+	r = cl.sendRequest(protocol.ScmdLogin, "a", "md5")
 	if r != "ok" {
 		t.Error("Response error: ", r)
 		return
 	}
 	// +Login
-	r, err = sendRequest(conn, "Login", "a", "md5")
-	if err != nil {
-		t.Error("Error: ", err)
-		return
-	}
+	r = cl.sendRequest(protocol.ScmdLogin, "a", "md5")
 	if r != "User 'a' is already online" {
 		t.Error("Response error: ", r)
 		return
 	}
 
 	// Again RegisterUser 'a'
-	r, err = sendRequest(conn, "RegisterUser", "a", "md5")
-	if err != nil {
-		t.Error("Error: ", err)
-		return
-	}
+	r = cl.sendRequest(protocol.ScmdRegisterUser, "a", "md5")
 	if r != "User 'a' already exists" {
 		t.Error("Response error: ", r)
 		return
 	}
 
+	cl2 := Client{}
 	// conn2
-	conn2, err := net.Dial("tcp", "localhost:1111")
+	cl2.conn, err = net.Dial("tcp", "localhost:1111")
 	if err != nil {
 		t.Error("No 2-th Sever Connection: ", err)
 		return
 	}
-	go readRoutine(conn2)
+	go cl2.readRoutine(cl2.conn)
 
 	// RegisterUser 'b'
-	r, err = sendRequest(conn2, "RegisterUser", "b", "md5")
-	if err != nil {
-		t.Error("Error: ", err)
-		return
-	}
+	r = cl2.sendRequest(protocol.ScmdRegisterUser, "b", "md5")
 	if r != "ok" {
 		t.Error("Response error: ", r)
 		return
 	}
 
 	// Login (b)
-	r, err = sendRequest(conn2, "Login", "b", "md5")
-	if err != nil {
-		t.Error("Error: ", err)
-		return
-	}
+	r = cl2.sendRequest(protocol.ScmdLogin, "b", "md5")
 	if r != "ok" {
 		t.Error("Response error: ", r)
 		return
 	}
 
 	// Get List (b)
-	r, err = sendRequest(conn2, "GetOnlineUserList", "", "")
-	if err != nil {
-		t.Error("Error: ", err)
-		return
-	}
+	r = cl2.sendRequest(protocol.ScmdGetOnlineUserList, "", "")
 	if r != "online users: a,b" {
 		t.Error("Response error: ", r)
 		return
@@ -146,11 +110,7 @@ func TestRegister(t *testing.T) {
 	// go func() {
 	// 	responseChannel <- "ok"
 	// }()
-	r, err = sendRequest(conn, "MessageTo", "b", "Msg")
-	if err != nil {
-		t.Error("Error: ", err)
-		return
-	}
+	r = cl.sendRequest(protocol.ScmdMessageTo, "b", "Msg")
 	if r != "ok" {
 		t.Error("Response error: ", r)
 		return
@@ -163,9 +123,5 @@ func TestRegister(t *testing.T) {
 	// }
 
 	// Clear
-	r, err = sendRequest(conn, "Clear", "", "")
-	if err != nil {
-		t.Error("Error: ", err)
-		return
-	}
+	r = cl.sendRequest(protocol.ScmdClear, "", "")
 }
