@@ -15,9 +15,9 @@ const (
 	constLocalDbFn = "local_db.json"
 )
 
-// LocalDbStruct - Local Database
-type LocalDbStruct struct {
-	users map[string]UserInfo
+// LocalDb - Local Database
+type LocalDb struct {
+	users map[string]*UserInfo
 	mutex sync.RWMutex
 }
 
@@ -31,12 +31,15 @@ type UserInfo struct {
 	// Connection to send messages from other users
 	// (conn==nil before login and after logouy)
 	conn net.Conn
+
+	// It prevents multiple clients from writing messages to the same recipient simultaneously
+	mutex sync.Mutex
 }
 
 // Init - Initiate Local Db
-func (db *LocalDbStruct) Init() error {
+func (db *LocalDb) Init() error {
 
-	db.users = make(map[string]UserInfo)
+	db.users = make(map[string]*UserInfo)
 
 	// create db file if not exist
 	if err := db.createIfNotExist(); err != nil {
@@ -52,7 +55,7 @@ func (db *LocalDbStruct) Init() error {
 }
 
 // createIfNotExist - create db file if not exist
-func (db *LocalDbStruct) createIfNotExist() error {
+func (db *LocalDb) createIfNotExist() error {
 
 	if _, err := os.Stat(constLocalDbFn); os.IsNotExist(err) || os.IsNotExist(err) {
 
@@ -70,7 +73,7 @@ func (db *LocalDbStruct) createIfNotExist() error {
 }
 
 // load - load db fromfile
-func (db *LocalDbStruct) load() error {
+func (db *LocalDb) load() error {
 
 	db.mutex.Lock()
 	defer db.mutex.Unlock()
@@ -83,7 +86,7 @@ func (db *LocalDbStruct) load() error {
 	}
 
 	// decode json
-	db.users = make(map[string]UserInfo)
+	db.users = make(map[string]*UserInfo)
 	if err := json.Unmarshal(data, &db.users); err != nil {
 		return err
 	}
@@ -92,15 +95,15 @@ func (db *LocalDbStruct) load() error {
 }
 
 // save to file
-func (db *LocalDbStruct) save() error {
+func (db *LocalDb) save() error {
 
-	if debug {
+	if Debug {
 		log.Printf("db: %+v\n", db)
 	}
 
 	// encode json
 	data, _ := json.MarshalIndent(db.users, "", " ")
-	if debug {
+	if Debug {
 		log.Println(string(data))
 	}
 
@@ -114,29 +117,29 @@ func (db *LocalDbStruct) save() error {
 }
 
 // RLock - lock for reading
-func (db *LocalDbStruct) RLock() {
+func (db *LocalDb) RLock() {
 	db.mutex.RLock()
 }
 
 // RUnlock - unlock for reading
-func (db *LocalDbStruct) RUnlock() {
+func (db *LocalDb) RUnlock() {
 	db.mutex.RUnlock()
 }
 
 // FindUser - find user
-func (db *LocalDbStruct) FindUser(name string) (UserInfo, bool) {
+func (db *LocalDb) FindUser(name string) (*UserInfo, bool) {
 	val, ok := db.users[name]
 	return val, ok
 }
 
 // DoesUserExist - check that user exists
-func (db *LocalDbStruct) DoesUserExist(name string) bool {
+func (db *LocalDb) DoesUserExist(name string) bool {
 	_, ok := db.users[name]
 	return ok
 }
 
 // AddUser - Add User
-func (db *LocalDbStruct) AddUser(name, password string, conn net.Conn) error {
+func (db *LocalDb) AddUser(name, password string, conn net.Conn) error {
 
 	db.mutex.Lock()
 	defer db.mutex.Unlock()
@@ -147,7 +150,7 @@ func (db *LocalDbStruct) AddUser(name, password string, conn net.Conn) error {
 	}
 
 	// add user info
-	db.users[name] = UserInfo{name, password, nil}
+	db.users[name] = &UserInfo{name, password, nil, sync.Mutex{}}
 
 	// save changes
 	if err := db.save(); err != nil {
@@ -158,7 +161,7 @@ func (db *LocalDbStruct) AddUser(name, password string, conn net.Conn) error {
 }
 
 // Login - login
-func (db *LocalDbStruct) Login(name, password string, conn net.Conn) error {
+func (db *LocalDb) Login(name, password string, conn net.Conn) error {
 
 	db.mutex.Lock()
 	defer db.mutex.Unlock()
@@ -188,7 +191,7 @@ func (db *LocalDbStruct) Login(name, password string, conn net.Conn) error {
 }
 
 // ChangePassword -
-func (db *LocalDbStruct) ChangePassword(name, newPassword string) error {
+func (db *LocalDb) ChangePassword(name, newPassword string) error {
 
 	db.mutex.Lock()
 	defer db.mutex.Unlock()
@@ -209,7 +212,7 @@ func (db *LocalDbStruct) ChangePassword(name, newPassword string) error {
 }
 
 // GetOnlineUserList - Get Online User List
-func (db *LocalDbStruct) GetOnlineUserList() []string {
+func (db *LocalDb) GetOnlineUserList() []string {
 
 	db.mutex.RLock()
 	defer db.mutex.RUnlock()
@@ -226,7 +229,7 @@ func (db *LocalDbStruct) GetOnlineUserList() []string {
 }
 
 // Logout - logout
-func (db *LocalDbStruct) Logout(name string) {
+func (db *LocalDb) Logout(name string) {
 
 	db.mutex.Lock()
 	defer db.mutex.Unlock()
@@ -240,11 +243,11 @@ func (db *LocalDbStruct) Logout(name string) {
 }
 
 // Clear - Clear Local Db (for testing)
-func (db *LocalDbStruct) Clear() {
+func (db *LocalDb) Clear() {
 
 	db.mutex.Lock()
 	defer db.mutex.Unlock()
 
 	// clear db
-	db.users = make(map[string]UserInfo)
+	db.users = make(map[string]*UserInfo)
 }
