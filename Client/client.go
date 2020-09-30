@@ -16,8 +16,8 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 )
 
-// debug variable
-const debug = false //true
+// Debug - for debugging
+const Debug = false //true
 
 // NickName (after login)
 var userNickName string
@@ -28,8 +28,15 @@ var userNickName string
 func main() {
 
 	serverAddress := "localhost:1111"
+
 	if len(os.Args) > 1 {
 		serverAddress = os.Args[1]
+	}
+
+	if true {
+		client := Client{}
+		client.Run(serverAddress)
+		return
 	}
 
 	fmt.Println("Connecting to '" + serverAddress + "' ...")
@@ -55,7 +62,7 @@ func main() {
 		// Read user command from stdin
 		fmt.Print(userNickName + "# ")
 		command := readLine()
-		if debug {
+		if Debug {
 			log.Println("command:" + command)
 		}
 
@@ -80,13 +87,66 @@ func main() {
 		case cmdLIST:
 			handleList(conn)
 
-		case cmdSEND:
-			handleSend(conn)
+		case cmdMESSAGE:
+			handleSendMessage(conn)
 
 		case cmdPASSWORD:
 			handlePassword(conn)
 
 		default:
+			fmt.Println("Invalid command. (Use 'help' command).")
+		}
+	}
+}
+
+// Client - TCP client
+type Client struct {
+
+	// nickname (after login)
+	userNickName string
+
+	// feedback from readLoop go-routine
+	responseChannel chan string
+
+	// connection to server
+	conn net.Conn
+}
+
+// Run - run TCP client
+func (cl *Client) Run(serverAddr string) {
+
+	fmt.Println("Connecting to '" + serverAddr + "' ...")
+
+	// Connect
+	var err error
+	cl.conn, err = net.Dial("tcp", serverAddr)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer cl.conn.Close()
+
+	// Start response reading routine
+	cl.responseChannel = make(chan string)
+	go readRoutine(cl.conn)
+
+	// Print greeting
+	fmt.Println(txtGREETING)
+
+	//
+	// Command line read loop
+	//
+	for {
+		// Read user command from stdin
+		fmt.Print(userNickName + "# ")
+		command := readLine()
+		if Debug {
+			log.Println("command:" + command)
+		}
+
+		if handleFunc := commandMap[command]; handleFunc != nil {
+			handleFunc(cl.conn)
+		} else {
 			fmt.Println("Invalid command. (Use 'help' command).")
 		}
 	}
@@ -99,7 +159,7 @@ func handleRegister(conn net.Conn) {
 	//
 	fmt.Print(" Enter your nickname:")
 	nickName := readLine()
-	if debug {
+	if Debug {
 		log.Println("nickName: '" + nickName + "'")
 	}
 
@@ -129,7 +189,7 @@ func handleRegister(conn net.Conn) {
 
 	// get md5 of password
 	md5Hex := fmt.Sprintf("md5:%x", md5.Sum(bytePassword))
-	if debug {
+	if Debug {
 		log.Print("md5:" + md5Hex)
 	}
 
@@ -161,7 +221,7 @@ func handleLogin(conn net.Conn) {
 	//
 	fmt.Print(" Enter your nickname:")
 	nickName := readLine()
-	if debug {
+	if Debug {
 		log.Println("nickName: '" + nickName + "'")
 	}
 
@@ -178,7 +238,7 @@ func handleLogin(conn net.Conn) {
 
 	// get md5 of password
 	md5Hex := fmt.Sprintf("md5:%x", md5.Sum(bytePassword))
-	if debug {
+	if Debug {
 		log.Print("md5:" + md5Hex)
 	}
 
@@ -245,8 +305,8 @@ func handleList(conn net.Conn) {
 	fmt.Println(responseStr)
 }
 
-// handleSend
-func handleSend(conn net.Conn) {
+// handleSendMessage
+func handleSendMessage(conn net.Conn) {
 
 	// check authorization
 	if userNickName == "" {
@@ -298,7 +358,7 @@ func handlePassword(conn net.Conn) {
 
 	// get md5 of password
 	md5Hex := fmt.Sprintf("md5:%x", md5.Sum(bytePassword))
-	if debug {
+	if Debug {
 		log.Print("md5:" + md5Hex)
 	}
 
@@ -326,7 +386,7 @@ func sendRequest(conn net.Conn, command, data1, data2 string) (string, error) {
 
 	// send to server
 	fmt.Fprintln(conn, requestStr)
-	if debug {
+	if Debug {
 		log.Println("requestJson: " + requestStr)
 	}
 
@@ -384,7 +444,7 @@ func readRoutine(conn net.Conn) {
 			log.Println("read responnse err: " + err.Error())
 			return
 		}
-		if debug {
+		if Debug {
 			log.Print("   responseStr: " + responseStr)
 		}
 
@@ -400,7 +460,7 @@ func readRoutine(conn net.Conn) {
 
 			// get sender name
 			from, err := reader.ReadString('\n')
-			if debug {
+			if Debug {
 				log.Print("   messageFrom: " + from)
 			}
 			if err != nil {
@@ -411,7 +471,7 @@ func readRoutine(conn net.Conn) {
 
 			// get message text
 			messageText, err := reader.ReadString('\n')
-			if debug {
+			if Debug {
 				log.Print("   messageText: " + messageText)
 			}
 			if err != nil {
@@ -432,7 +492,7 @@ func readRoutine(conn net.Conn) {
 		//
 		// receive response
 		//
-		if debug {
+		if Debug {
 			log.Println("response: '" + removeLastChar(responseStr) + "'")
 		}
 		responseChannel <- removeLastChar(responseStr)
@@ -447,9 +507,28 @@ const (
 	cmdLOGIN    = "login"
 	cmdLOGOUT   = "logout"
 	cmdLIST     = "list"
-	cmdSEND     = "send"
+	cmdMESSAGE  = "send"
 	cmdPASSWORD = "password"
 )
+
+var commandMap = map[string]func(conn net.Conn){
+	cmdEXIT:     handleExit,
+	cmdHELP:     handleHelp,
+	cmdREGISTER: handleRegister,
+	cmdLOGIN:    handleLogin,
+	cmdLOGOUT:   handleLogout,
+	cmdLIST:     handleList,
+	cmdMESSAGE:  handleSendMessage,
+	cmdPASSWORD: handlePassword,
+}
+
+func handleExit(conn net.Conn) {
+	os.Exit(0)
+}
+
+func handleHelp(conn net.Conn) {
+	os.Exit(0)
+}
 
 // Text constants
 const txtGREETING = "Enter 'help' command to see a list of available commands\n"
@@ -458,7 +537,7 @@ const txtHELP = "" +
 	"  '" + cmdLOGIN + "' - login existing user\n" +
 	"  '" + cmdLOGOUT + "' - logout current user\n" +
 	"  '" + cmdLIST + "' - get a list of online users\n" +
-	"  '" + cmdSEND + "' - send a message to some user\n" +
+	"  '" + cmdMESSAGE + "' - send a message to some user\n" +
 	"  '" + cmdPASSWORD + "' - change password\n" +
 	"  '" + cmdEXIT + "' - quit from this messager\n" +
 	"  '" + cmdHELP + "' - display this help text\n"
