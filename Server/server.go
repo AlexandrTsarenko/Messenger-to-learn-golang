@@ -9,11 +9,47 @@ import (
 	"strings"
 )
 
-// for debugging
-const debug = false //true
+// for Debugging
+const Debug = false //true
+
+// LocalDbInterface - Interface for local DB implementaion
+type LocalDbMethods interface {
+	// Init - Initiate Local Db
+	Init() error
+
+	// RLock - lock for reading
+	RLock()
+
+	// RUnlock - unlock for reading
+	RUnlock()
+
+	// FindUser - find user
+	FindUser(name string) (*UserInfo, bool)
+
+	// DoesUserExist - check that user exists
+	DoesUserExist(name string) bool
+
+	// AddUser - Add User
+	AddUser(name, password string, conn net.Conn) error
+
+	// Login - login
+	Login(name, password string, conn net.Conn) error
+
+	// Logout - logout
+	Logout(name string)
+
+	// ChangePassword -
+	ChangePassword(name, newPassword string) error
+
+	// GetOnlineUserList - Get Online User List
+	GetOnlineUserList() []string
+
+	// Clear - Clear Local Db (for testing)
+	Clear()
+}
 
 // Local DB
-var gLocalDb LocalDbStruct
+var gLocalDb LocalDbMethods = &LocalDb{}
 
 //
 // main()
@@ -64,7 +100,7 @@ func handleConnection(conn net.Conn) {
 
 		// connection lost?
 		if err != nil {
-			if debug {
+			if Debug {
 				log.Println("userName: '" + userName)
 				log.Println(err)
 			}
@@ -74,7 +110,7 @@ func handleConnection(conn net.Conn) {
 			}
 			return
 		}
-		if debug {
+		if Debug {
 			log.Print("requestStr: " + requestStr + "\n")
 		}
 
@@ -169,10 +205,8 @@ func handleConnection(conn net.Conn) {
 
 		//  Clear (for testing)
 		case "Clear":
-			if debug {
-				gLocalDb.Clear()
-				conn.Write([]byte("ok\n"))
-			}
+			gLocalDb.Clear()
+			conn.Write([]byte("ok\n"))
 		}
 	} // end of for
 }
