@@ -103,6 +103,16 @@ func (cl *Client) Run(serverAddr string) {
 	}
 }
 
+// handleExit
+func (cl *Client) handleExit() {
+	os.Exit(0)
+}
+
+// handleHelp
+func (cl *Client) handleHelp() {
+	fmt.Print(txtHELP)
+}
+
 // handleRegister
 func (cl *Client) handleRegister() {
 	//
@@ -418,14 +428,6 @@ const (
 	cmdMESSAGE  = "send"
 	cmdPASSWORD = "password"
 )
-
-func (cl *Client) handleExit() {
-	os.Exit(0)
-}
-
-func (cl *Client) handleHelp() {
-	fmt.Print(txtHELP)
-}
 
 // Text constants
 const txtGREETING = "Enter 'help' command to see a list of available commands\n"
