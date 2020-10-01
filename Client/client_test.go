@@ -16,6 +16,7 @@ func TestRegister(t *testing.T) {
 		return
 	}
 
+	cl.responseChannel = make(chan string)
 	go cl.readRoutine()
 
 	// Clear
@@ -83,6 +84,7 @@ func TestRegister(t *testing.T) {
 		t.Error("No 2-th Sever Connection: ", err)
 		return
 	}
+	cl2.responseChannel = make(chan string)
 	go cl2.readRoutine()
 
 	// RegisterUser 'b'
