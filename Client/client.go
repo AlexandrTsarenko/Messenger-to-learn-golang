@@ -17,7 +17,7 @@ import (
 )
 
 // Debug - for debugging
-const Debug = false //true
+const Debug = true //false //true
 
 //
 // Main
@@ -50,6 +50,8 @@ type Client struct {
 	conn net.Conn
 }
 
+var responseChannel2 chan string = make(chan string)
+
 //
 // Run - run TCP client
 //
@@ -68,7 +70,7 @@ func (cl *Client) Run(serverAddr string) {
 
 	// Start response reading routine
 	cl.responseChannel = make(chan string)
-	go cl.readRoutine(cl.conn)
+	go cl.readRoutine()
 
 	// Print greeting
 	fmt.Println(txtGREETING)
@@ -304,7 +306,7 @@ func (cl *Client) sendRequest(command protocol.CommandToServer, data1, data2 str
 	}
 
 	// wait response
-	responseStr := <-responseChannel
+	responseStr := <-responseChannel2
 
 	if responseStr != "ok" {
 		fmt.Println(responseStr)
@@ -328,30 +330,17 @@ func trimSuffix(s, suffix string) string {
 	return s
 }
 
-// func removeLastChar(s string) string {
-// 	sz := len(s)
-// 	if sz > 0 {
-// 		s = s[:sz-1]
-// 	}
-// 	return s
-// }
-
-// readingChannel
-var responseChannel chan string = make(chan string)
-
-//todo? var messagesChannel chan string = make(chan string)
-
 //
 // readRoutine
 //
-func (cl *Client) readRoutine(conn net.Conn) {
+func (cl *Client) readRoutine() {
 
-	reader := bufio.NewReader(conn)
+	reader := bufio.NewReader(cl.conn)
 
 	// read loop
 	for {
 		//
-		// read response
+		// read response or message from another user
 		//
 		responseStr, err := reader.ReadString('\n')
 		if err != nil {
@@ -359,61 +348,32 @@ func (cl *Client) readRoutine(conn net.Conn) {
 				time.Sleep(10000000) // 0.01 sec
 				continue
 			}
-			log.Println("read responnse err: " + err.Error())
+			log.Println("read err: " + err.Error())
 			return
 		}
+
 		if Debug {
 			log.Print("   responseStr: " + responseStr)
 		}
 
-		// skip empty response (todo?)
-		// if responseStr == "\n" {
-		// 	continue
-		// }
-
-		//
-		// receive message from other user
-		//
-		if responseStr == "message\n" {
-
-			// get sender name
-			from, err := reader.ReadString('\n')
-			if Debug {
-				log.Print("   messageFrom: " + from)
-			}
-			if err != nil {
-				log.Println("read message from err: " + err.Error())
-				continue
-			}
-			from = trimSuffix(from, "\n")
-
-			// get message text
-			messageText, err := reader.ReadString('\n')
-			if Debug {
-				log.Print("   messageText: " + messageText)
-			}
-			if err != nil {
-				log.Println("read message text err: " + err.Error())
-				continue
-			}
-
-			// print message to stdout
-			fmt.Println("\n\nMessage from '" + from + "':\n" + messageText)
-
-			// print new line
-			fmt.Print(cl.userNickName + "#")
-
-			//todo? messagesChannel <- "Message from '" + from + "':\n" + messageText
+		msg := protocol.MessageFromServer{}
+		if err := msg.Decode(responseStr); err != nil {
+			fmt.Println("Invalid message from server: " + responseStr)
 			continue
 		}
 
-		//
-		// receive response
-		//
-		if Debug {
-			log.Println("response: '" + trimSuffix(responseStr, "\n") + "'")
+		switch msg.Type {
+
+		case protocol.Reply:
+			responseChannel2 <- msg.ServerReply()
+
+		case protocol.MessageFrom:
+			// print message to stdout
+			fmt.Println("\n\nMessage from '" + msg.SenderNickname() + "':\n" + msg.MessageText())
+
+			// print new line
+			fmt.Print(cl.userNickName + "#")
 		}
-		responseChannel <- trimSuffix(responseStr, "\n")
 	}
 }
 

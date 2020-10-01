@@ -16,7 +16,7 @@ func TestRegister(t *testing.T) {
 		return
 	}
 
-	go cl.readRoutine(cl.conn)
+	go cl.readRoutine()
 
 	// Clear
 	r := cl.sendRequest(protocol.ScmdClear, "", "")
@@ -47,7 +47,7 @@ func TestRegister(t *testing.T) {
 		t.Error("No Sever Connection: ", err)
 		return
 	}
-	go cl.readRoutine(cl.conn)
+	go cl.readRoutine()
 
 	// Invalid password
 	r = cl.sendRequest(protocol.ScmdLogin, "a", "pass")
@@ -83,7 +83,7 @@ func TestRegister(t *testing.T) {
 		t.Error("No 2-th Sever Connection: ", err)
 		return
 	}
-	go cl2.readRoutine(cl2.conn)
+	go cl2.readRoutine()
 
 	// RegisterUser 'b'
 	r = cl2.sendRequest(protocol.ScmdRegisterUser, "b", "md5")

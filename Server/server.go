@@ -10,7 +10,7 @@ import (
 )
 
 // Debug - for Debugging
-const Debug = false //true
+const Debug = true //false //true
 
 // LocalDbInterface - Interface for local DB implementaion
 type LocalDbInterface interface {
@@ -145,6 +145,7 @@ func handleConnection(conn net.Conn) {
 			}
 			return
 		}
+
 		if Debug {
 			log.Print("requestStr: " + requestStr + "\n")
 		}
@@ -161,49 +162,50 @@ func handleConnection(conn net.Conn) {
 		//  CheckUniqueNickName
 		case protocol.ScmdCheckUniqueNickName:
 			if gLocalDb.DoesUserExist(rqst.Data1) {
-				conn.Write([]byte("User '" + rqst.Data1 + "' already exists\n"))
+				sendReply(conn, "User '"+rqst.Data1+"' already exists")
+
 			} else {
-				conn.Write([]byte("ok\n"))
+				sendReply(conn, "ok")
 			}
 
 		//  RegisterUser
 		case protocol.ScmdRegisterUser:
 			if err := gLocalDb.AddUser(rqst.Data1, rqst.Data2, conn); err != nil {
-				conn.Write([]byte(err.Error() + "\n"))
+				sendReply(conn, err.Error())
 			} else {
-				conn.Write([]byte("ok\n"))
+				sendReply(conn, "ok")
 			}
 
 		//  Login
 		case protocol.ScmdLogin:
 			if err := gLocalDb.Login(rqst.Data1, rqst.Data2, conn); err != nil {
-				conn.Write([]byte(err.Error() + "\n"))
+				sendReply(conn, err.Error())
 			} else {
 				userName = rqst.Data1
-				conn.Write([]byte("ok\n"))
+				sendReply(conn, "ok")
 			}
 
 		//  Logout
 		case protocol.ScmdLogout:
 			gLocalDb.Logout(userName)
 			userName = ""
-			conn.Write([]byte("ok\n"))
+			sendReply(conn, "ok")
 
 		//  ChangePassword
 		case protocol.ScmdChangePassword:
 			if err := gLocalDb.ChangePassword(userName, rqst.Data1); err != nil {
-				conn.Write([]byte(err.Error() + "\n"))
+				sendReply(conn, err.Error())
 			} else {
-				conn.Write([]byte("ok\n"))
+				sendReply(conn, "ok")
 			}
 
 		//  GetOnlineUserList
 		case protocol.ScmdGetOnlineUserList:
 			userList := gLocalDb.GetOnlineUserList()
 			if len(userList) > 0 {
-				conn.Write([]byte("online users: " + strings.Join(userList, ",") + "\n"))
+				sendReply(conn, "online users: "+strings.Join(userList, ","))
 			} else {
-				conn.Write([]byte("no online users\n"))
+				sendReply(conn, "no online users")
 			}
 
 		//  MessageTo
@@ -211,7 +213,7 @@ func handleConnection(conn net.Conn) {
 
 			// check login status
 			if userName == "" {
-				conn.Write([]byte("You are not logged in\n"))
+				sendReply(conn, "You are not logged in")
 				continue
 			}
 
@@ -223,16 +225,16 @@ func handleConnection(conn net.Conn) {
 
 				// check recipient connection
 				if !isFound {
-					conn.Write([]byte("User '" + name + "' does not exist\n"))
+					sendReply(conn, "User '"+name+"' does not exist")
 				} else if userInfo.conn == nil {
-					conn.Write([]byte("User '" + name + "' is offline\n"))
+					sendReply(conn, "User '"+name+"' is offline")
 				} else {
 
 					// send message
 					if err := sendMessage(userInfo.conn, userName, rqst.Data2); err != nil {
-						conn.Write([]byte(err.Error() + "\n"))
+						sendReply(conn, err.Error())
 					} else {
-						conn.Write([]byte("ok\n"))
+						sendReply(conn, "ok")
 					}
 				}
 			}
@@ -241,14 +243,27 @@ func handleConnection(conn net.Conn) {
 		//  Clear (for testing)
 		case protocol.ScmdClear:
 			gLocalDb.Clear()
-			conn.Write([]byte("ok\n"))
+			sendReply(conn, "ok")
 		}
 	} // end of for
 }
 
 // Forward message from one user to another
+func sendReply(conn net.Conn, replyText string) error {
+	msg := protocol.MessageFromServer{Type: protocol.Reply, Data1: replyText, Data2: ""}
+	json := append(msg.Encode(), '\n')
+	_, err := conn.Write(json)
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+	return nil
+}
+
+// Forward message from one user to another
 func sendMessage(conn net.Conn, name, message string) error {
-	_, err := conn.Write([]byte("message\n" + name + "\n" + message + "\n"))
+	msg := protocol.MessageFromServer{Type: protocol.MessageFrom, Data1: name, Data2: message}
+	json := append(msg.Encode(), '\n')
+	_, err := conn.Write(json)
 	if err != nil {
 		log.Fatal(err.Error())
 	}
