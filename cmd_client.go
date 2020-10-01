@@ -1,17 +1,10 @@
 package main
 
 import (
-	"os"
-
 	"GitHub/Messenger-to-learn-golang/client"
+	"os"
 )
 
-// Debug - for debugging
-const Debug = true //false //true
-
-//
-// Main
-//
 func main() {
 
 	serverAddress := "localhost:1111"
