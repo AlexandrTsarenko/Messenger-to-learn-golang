@@ -43,14 +43,12 @@ type Client struct {
 	// nickname (after login)
 	userNickName string
 
-	// feedback from readLoop go-routine
-	responseChannel chan string
-
 	// connection to server
 	conn net.Conn
-}
 
-var responseChannel2 chan string = make(chan string)
+	// feedback from readLoop go-routine
+	responseChannel chan string
+}
 
 //
 // Run - run TCP client
@@ -306,7 +304,7 @@ func (cl *Client) sendRequest(command protocol.CommandToServer, data1, data2 str
 	}
 
 	// wait response
-	responseStr := <-responseChannel2
+	responseStr := <-cl.responseChannel
 
 	if responseStr != "ok" {
 		fmt.Println(responseStr)
@@ -365,7 +363,7 @@ func (cl *Client) readRoutine() {
 		switch msg.Type {
 
 		case protocol.Reply:
-			responseChannel2 <- msg.ServerReply()
+			(cl.responseChannel) <- msg.ServerReply()
 
 		case protocol.MessageFrom:
 			// print message to stdout
