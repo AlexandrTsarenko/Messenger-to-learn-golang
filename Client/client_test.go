@@ -1,4 +1,4 @@
-package main
+package client
 
 import (
 	"GitHub/Messenger-to-learn-golang/protocol"

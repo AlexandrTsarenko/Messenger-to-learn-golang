@@ -1,4 +1,4 @@
-package main
+package client
 
 import (
 	"GitHub/Messenger-to-learn-golang/protocol"
@@ -22,18 +22,18 @@ const Debug = true //false //true
 //
 // Main
 //
-func main() {
+// func main() {
 
-	serverAddress := "localhost:1111"
+// 	serverAddress := "localhost:1111"
 
-	if len(os.Args) > 1 {
-		serverAddress = os.Args[1]
-	}
+// 	if len(os.Args) > 1 {
+// 		serverAddress = os.Args[1]
+// 	}
 
-	client := Client{}
-	client.Run(serverAddress)
-	return
-}
+// 	client := Client{}
+// 	client.Run(serverAddress)
+// 	return
+// }
 
 //
 // Client - TCP client
