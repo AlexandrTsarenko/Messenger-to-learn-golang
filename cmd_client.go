@@ -13,7 +13,7 @@ func main() {
 		serverAddress = os.Args[1]
 	}
 
-	client := client.Client{}
+	client := client.NewClient(serverAddress)
 	client.Run(serverAddress)
 	return
 }
