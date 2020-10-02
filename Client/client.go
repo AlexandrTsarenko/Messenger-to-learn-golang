@@ -17,23 +17,7 @@ import (
 )
 
 // Debug - for debugging
-const Debug = true //false //true
-
-//
-// Main
-//
-// func main() {
-
-// 	serverAddress := "localhost:1111"
-
-// 	if len(os.Args) > 1 {
-// 		serverAddress = os.Args[1]
-// 	}
-
-// 	client := Client{}
-// 	client.Run(serverAddress)
-// 	return
-// }
+var Debug = false //true
 
 //
 // Client - TCP client
@@ -48,6 +32,36 @@ type Client struct {
 
 	// feedback from readLoop go-routine
 	responseChannel chan string
+
+	// server address + port number (i.e. "localhost:1111")
+	serverAddr string
+}
+
+// NewClient - Client constructor
+func NewClient(serverAddr string) *Client {
+	cl := new(Client)
+	cl.serverAddr = serverAddr
+	cl.responseChannel = make(chan string)
+	return cl
+}
+
+// connectToServer
+func (cl *Client) connectToServer() error {
+
+	fmt.Println("Connecting to '" + cl.serverAddr + "' ...")
+
+	// Connect to server
+	var err error
+	cl.conn, err = net.Dial("tcp", cl.serverAddr)
+	if err != nil {
+		fmt.Println(err)
+		return err
+	}
+
+	// Start reading routine
+	go cl.readRoutine()
+
+	return nil
 }
 
 //
@@ -55,20 +69,11 @@ type Client struct {
 //
 func (cl *Client) Run(serverAddr string) {
 
-	fmt.Println("Connecting to '" + serverAddr + "' ...")
-
-	// Connect to server
-	var err error
-	cl.conn, err = net.Dial("tcp", serverAddr)
-	if err != nil {
-		fmt.Println(err)
+	// connect to server
+	if cl.connectToServer() != nil {
 		return
 	}
 	defer cl.conn.Close()
-
-	// Start response reading routine
-	cl.responseChannel = make(chan string)
-	go cl.readRoutine()
 
 	// Print greeting
 	fmt.Println(txtGREETING)

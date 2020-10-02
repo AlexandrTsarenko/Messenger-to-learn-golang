@@ -2,22 +2,13 @@ package client
 
 import (
 	"GitHub/Messenger-to-learn-golang/protocol"
-	"net"
 	"testing"
 )
 
-func TestRegister(t *testing.T) {
-	var cl = Client{}
+func TestClientServerIteractions(t *testing.T) {
 
-	var err error
-	cl.conn, err = net.Dial("tcp", "localhost:1111")
-	if err != nil {
-		t.Error("No Sever Connection: ", err)
-		return
-	}
-
-	cl.responseChannel = make(chan string)
-	go cl.readRoutine()
+	var cl = NewClient("localhost:1111")
+	cl.connectToServer()
 
 	// Clear
 	r := cl.sendRequest(protocol.ScmdClear, "", "")
@@ -43,12 +34,7 @@ func TestRegister(t *testing.T) {
 	}
 
 	cl.conn.Close()
-	cl.conn, err = net.Dial("tcp", "localhost:1111")
-	if err != nil {
-		t.Error("No Sever Connection: ", err)
-		return
-	}
-	go cl.readRoutine()
+	cl.connectToServer()
 
 	// Invalid password
 	r = cl.sendRequest(protocol.ScmdLogin, "a", "pass")
@@ -77,15 +63,8 @@ func TestRegister(t *testing.T) {
 		return
 	}
 
-	cl2 := Client{}
-	// conn2
-	cl2.conn, err = net.Dial("tcp", "localhost:1111")
-	if err != nil {
-		t.Error("No 2-th Sever Connection: ", err)
-		return
-	}
-	cl2.responseChannel = make(chan string)
-	go cl2.readRoutine()
+	cl2 := NewClient("localhost:1111")
+	cl2.connectToServer()
 
 	// RegisterUser 'b'
 	r = cl2.sendRequest(protocol.ScmdRegisterUser, "b", "md5")

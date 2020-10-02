@@ -1,16 +1,15 @@
-package main
+package server
 
 import (
 	"GitHub/Messenger-to-learn-golang/protocol"
 	"bufio"
 	"log"
 	"net"
-	"os"
 	"strings"
 )
 
 // Debug - for Debugging
-const Debug = true //false //true
+var Debug = false //true
 
 // Server - TCP message server
 type Server struct {
@@ -26,36 +25,14 @@ func NewServer(portNumber string) *Server {
 	return server
 }
 
-//
-// main()
-//
-func main() {
-
-	log.SetFlags( /*log.LstdFlags |*/ log.Lshortfile)
-
-	portNum := ":1111"
-	if len(os.Args) > 1 {
-		portNum = os.Args[1]
-	}
-
-	srv := NewServer(portNum)
-
-	srv.Run()
-}
-
-// Run -
+// Run - Server run loop
 func (srv *Server) Run() {
 
 	log.SetFlags( /*log.LstdFlags |*/ log.Lshortfile)
 
 	srv.localDb.Init()
 
-	portNum := ":1111"
-	if len(os.Args) > 1 {
-		portNum = os.Args[1]
-	}
-
-	listener, err := net.Listen("tcp4", portNum)
+	listener, err := net.Listen("tcp4", srv.port)
 	if err != nil {
 		log.Println("Listen failed!")
 		log.Fatal(err)
