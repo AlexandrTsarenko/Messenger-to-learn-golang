@@ -17,3 +17,4 @@
 # vendor/
 Server/__Debug_bin
 Server/local_db.json
+*.json
